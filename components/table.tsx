@@ -1,11 +1,11 @@
-import prisma from '@/lib/prisma'
-import { timeAgo } from '@/lib/utils'
-import Image from 'next/image'
+import { PrismaClient } from '@prisma/client';
 import RefreshButton from './refresh-button'
 
 export default async function Table() {
+
+  const prisma = new PrismaClient();
   const startTime = Date.now()
-  const terms = await prisma.terms.findMany()
+  const terms = await prisma.term.findMany()
   const duration = Date.now() - startTime
 
   return (
