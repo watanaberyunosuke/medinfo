@@ -1,20 +1,27 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("POSTGRES_PRISMA_URL") // uses connection pooling
-  directUrl = env("POSTGRES_URL_NON_POOLING") // uses a direct connection
+  provider = "postgresql"
+  url      = env("POSTGRES_PRISMA_URL")
 }
 
-model users {
-  id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  image     String
-  createdAt DateTime @default(now())
+model Term {
+  id Int @id @default(autoincrement())
+  short_form String
+  type String
+  full_form String @db.VarChar(255)
+  cht String @db.VarChar(255)
+  chs String @db.VarChar(255)
+  annotation String? @db.VarChar(255)
+  resources String? @db.VarChar(255)
+}
+
+enum type {
+  Policy
+  Term
+  Occupation
+  Therapy
+  Assessment
 }
