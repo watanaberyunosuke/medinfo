@@ -18,6 +18,21 @@ model Term {
   resources String? @db.VarChar(255)
 }
 
+model AustraliaHospital {
+  objectid  Int     @id @default(autoincrement())
+  hsib_id   String
+  hosp_name String
+  category  String
+  street    String
+  pcode     String
+  suburb    String
+  state     String
+  xcoord    Float
+  ycoord    Float
+  globalid  String
+}
+
+
 enum type {
   Policy
   Term
