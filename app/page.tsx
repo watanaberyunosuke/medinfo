@@ -9,7 +9,7 @@ export default function Home() {
         Med Info
       </h1>
       <h3 className="pt-4 pb-8 bg-gradient-to-br from-black via-[#171717] to-[#575757] bg-clip-text text-center text-4xl font-medium tracking-tight text-transparent md:text-7xl">
-        <Link href='/terms'>Terms</Link>
+        <Link href='/terms'>Terms</Link><br/>
         <Link href='/hospitals'>Hospitals</Link>
       </h3>
     </main>
