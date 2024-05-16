@@ -8,30 +8,28 @@ datasource db {
 }
 
 model Term {
-  id Int @id @default(autoincrement())
+  id         Int     @id @default(autoincrement())
   short_form String
-  type String
-  full_form String @db.VarChar(255)
-  cht String @db.VarChar(255)
-  chs String @db.VarChar(255)
+  type       String
+  full_form  String  @db.VarChar(255)
+  cht        String  @db.VarChar(255)
+  chs        String  @db.VarChar(255)
   annotation String? @db.VarChar(255)
-  resources String? @db.VarChar(255)
+  resources  String? @db.VarChar(255)
 }
-
-model AustraliaHospital {
-  objectid  Int     @id @default(autoincrement())
-  hsib_id   String
-  hosp_name String
-  category  String
-  street    String
-  pcode     String
-  suburb    String
-  state     String
-  xcoord    Float
-  ycoord    Float
-  globalid  String
+model Australia_Hospital {
+  objectid  Int
+  hsib_id   Int @id
+  hosp_name String?
+  category  String?
+  street    String?
+  pcode     String?
+  suburb    String?
+  state     String?
+  xcoord    String?
+  ycoord    String?
+  globalid  String?
 }
-
 
 enum type {
   Policy

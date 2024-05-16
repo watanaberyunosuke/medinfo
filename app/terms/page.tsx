@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import Table from '@/components/table'
+import Table from '@/components/term-table'
 import TablePlaceholder from '@/components/table-placeholder'
 
 export const dynamic = 'force-dynamic'
