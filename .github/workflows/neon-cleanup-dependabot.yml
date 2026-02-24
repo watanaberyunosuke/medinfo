@@ -12,13 +12,11 @@ jobs:
     steps:
       - name: Install Neon CLI
         run: |
-          curl -fsSL https://neon.tech/install.sh | bash
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
-          echo "$HOME/.neon/bin" >> $GITHUB_PATH
-          neon --version
+          npm install -g neonctl
+          neonctl --version
 
       - name: Authenticate Neon CLI
-        run: neon auth --api-key "${{ secrets.NEON_API_KEY }}"
+        run: neonctl auth --api-key "${{ secrets.NEON_API_KEY }}"
 
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
@@ -27,12 +25,12 @@ jobs:
         env:
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          neon branches list --project-id "$PROJECT_ID" --output json \
+          neonctl branches list --project-id "$PROJECT_ID" --output json \
           | jq -r '.branches[].name' \
           | grep '^dependabot/' || true \
           | while read branch; do
               echo "Expiring branch: $branch"
-              neon branches update "$branch" \
+              neonctl branches update "$branch" \
                 --project-id "$PROJECT_ID" \
                 --ttl 24h || true
             done
