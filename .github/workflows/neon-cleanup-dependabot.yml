@@ -10,10 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Neon CLI
-        run: |
-          curl -fsSL https://neon.tech/install.sh | bash
-          echo "$HOME/.neon/bin" >> $GITHUB_PATH
+      - name: Setup Neon CLI
+        uses: neondatabase/setup-neon@v1
 
       - name: Verify Neon CLI
         run: neon --version
@@ -32,6 +30,7 @@ jobs:
           | jq -r '.branches[].name' \
           | grep '^dependabot/' || true \
           | while read branch; do
+              echo "Expiring $branch"
               neon branches update "$branch" \
                 --project-id "$PROJECT_ID" \
                 --ttl 24h || true
