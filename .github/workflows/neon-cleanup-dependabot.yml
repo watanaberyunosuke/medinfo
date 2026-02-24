@@ -1,8 +1,9 @@
-name: Cleanup Neon dependabot branches
+name: Cleanup Neon preview branches
 
 on:
   schedule:
-    - cron: "0 16 * * *"   # daily (3am Melbourne AEDT)
+    # Runs daily at 3am Melbourne time (AEDT = UTC+11)
+    - cron: "0 16 * * *"
   workflow_dispatch:
 
 jobs:
@@ -13,36 +14,49 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Fetch Neon branches
+      - name: Fetch branches from Neon
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
+          echo "Fetching branches..."
+
           curl -sL \
             -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          echo "Dependabot branches found:"
-          jq -r '.branches[].name | select(startswith("preview/dependabot/"))' branches.json
+          echo "All branches:"
+          jq -r '.branches[].name' branches.json
 
-      - name: Expire dependabot branches
+      - name: Delete preview branches safely
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          jq -c '.branches[] | select(.name | startswith("preview/dependabot/"))' branches.json \
+          echo "Cleaning preview branches..."
+
+          jq -c '.branches[] 
+            | select(
+                (.name | startswith("preview/dependabot/")) or
+                (.name | startswith("preview/vercel/"))
+              )
+            | select(.primary == false)
+            | select(.default == false)
+            | select(.protected == false)
+          ' branches.json \
           | while read branch; do
 
               BRANCH_ID=$(echo "$branch" | jq -r '.id')
               BRANCH_NAME=$(echo "$branch" | jq -r '.name')
 
-              echo "Expiring $BRANCH_NAME ($BRANCH_ID)"
+              echo "Deleting branch: $BRANCH_NAME ($BRANCH_ID)"
 
-              curl -sL -X PATCH \
+              curl -sL -X DELETE \
                 -H "Authorization: Bearer $NEON_API_KEY" \
-                -H "Content-Type: application/json" \
-                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$BRANCH_ID" \
-                -d '{"expires_at":"'"$(date -u -d '+24 hours' +%Y-%m-%dT%H:%M:%SZ)"'"}'
+                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$BRANCH_ID"
 
+              echo ""
           done
+
+          echo "Cleanup complete."
