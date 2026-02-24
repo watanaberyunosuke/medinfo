@@ -1,9 +1,8 @@
-name: Cleanup Neon preview branches
+name: Cleanup Neon dependabot branches (repo-safe)
 
 on:
   schedule:
-    # Runs daily at 3am Melbourne time (AEDT = UTC+11)
-    - cron: "0 16 * * *"
+    - cron: "0 16 * * *"   # daily 3am Melbourne
   workflow_dispatch:
 
 jobs:
@@ -19,38 +18,39 @@ jobs:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          echo "Fetching branches..."
-
           curl -sL \
             -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          echo "All branches:"
-          jq -r '.branches[].name' branches.json
-
-      - name: Delete preview branches safely
+      - name: Delete dependabot branches from THIS repo only
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          GITHUB_REPO: ${{ github.repository }}
         run: |
-          echo "Cleaning preview branches..."
+          echo "Target GitHub repo: $GITHUB_REPO"
 
-          jq -c '.branches[] 
-            | select(
-                (.name | startswith("preview/dependabot/")) or
-                (.name | startswith("preview/vercel/"))
-              )
+          jq -c --arg repo "$GITHUB_REPO" '
+            .branches[]
             | select(.primary == false)
             | select(.default == false)
             | select(.protected == false)
-          ' branches.json \
+            | select(.name | startswith("preview/dependabot/"))
+            | select(
+                .id as $id
+                | .project_id as $project
+                | (
+                    input.annotations[$id].value."vercel-commit-repo" == $repo
+                  )
+              )
+          ' branches.json branches.json \
           | while read branch; do
 
               BRANCH_ID=$(echo "$branch" | jq -r '.id')
               BRANCH_NAME=$(echo "$branch" | jq -r '.name')
 
-              echo "Deleting branch: $BRANCH_NAME ($BRANCH_ID)"
+              echo "Deleting Dependabot branch from this repo: $BRANCH_NAME"
 
               curl -sL -X DELETE \
                 -H "Authorization: Bearer $NEON_API_KEY" \
