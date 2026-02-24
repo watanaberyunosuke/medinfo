@@ -2,9 +2,8 @@ name: Cleanup dependabot Neon branches
 
 on:
   schedule:
-    # Runs daily at 3am Melbourne time (AEDT/AEST-safe approach is UTC offset)
-    - cron: "0 16 * * *"   # 3am Melbourne during AEDT (UTC+11)
-  workflow_dispatch:       # allows manual run
+    - cron: "0 16 * * *"
+  workflow_dispatch:
 
 jobs:
   cleanup:
@@ -16,32 +15,24 @@ jobs:
           curl -fsSL https://neon.tech/install.sh | bash
           echo "$HOME/.neon/bin" >> $GITHUB_PATH
 
-      - name: Install jq
-        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Verify Neon CLI
+        run: neon --version
 
       - name: Authenticate Neon CLI
         run: neon auth --api-key "${{ secrets.NEON_API_KEY }}"
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Expire dependabot branches
         env:
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          echo "Fetching branches..."
-
-          neon branches list \
-            --project-id "$PROJECT_ID" \
-            --output json \
+          neon branches list --project-id "$PROJECT_ID" --output json \
           | jq -r '.branches[].name' \
           | grep '^dependabot/' || true \
           | while read branch; do
-
-              echo "Setting TTL for branch: $branch"
-
-              neon branches update \
-                "$branch" \
+              neon branches update "$branch" \
                 --project-id "$PROJECT_ID" \
                 --ttl 24h || true
-
-          done
-
-          echo "Cleanup completed."
+            done
