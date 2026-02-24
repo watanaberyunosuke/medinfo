@@ -12,9 +12,9 @@ jobs:
     steps:
       - name: Install Neon CLI
         run: |
-          curl -L https://github.com/neondatabase/neonctl/releases/latest/download/neonctl-linux-amd64.tar.gz -o neon.tar.gz
-          tar -xzf neon.tar.gz
-          sudo mv neonctl /usr/local/bin/neon
+          curl -fsSL https://neon.tech/install.sh | bash
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+          echo "$HOME/.neon/bin" >> $GITHUB_PATH
           neon --version
 
       - name: Authenticate Neon CLI
