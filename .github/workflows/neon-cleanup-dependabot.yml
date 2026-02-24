@@ -1,62 +1,48 @@
-name: Auto-expire Neon dependabot branches
+name: Cleanup Neon dependabot branches
 
 on:
   schedule:
-    - cron: "0 16 * * *"
+    - cron: "0 16 * * *"   # daily (3am Melbourne AEDT)
   workflow_dispatch:
 
 jobs:
-  expire:
+  cleanup:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Fetch branches
+      - name: Fetch Neon branches
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          echo "Fetching branches from Neon project: icy-salad-36678425"
-
           curl -sL \
             -H "Authorization: Bearer $NEON_API_KEY" \
-            "https://console.neon.tech/api/v2/projects/icy-salad-36678425/branches" \
+            "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          echo "Raw response:"
-          cat branches.json
-
-          echo "Validating..."
-
-          if jq -e '.branches' branches.json > /dev/null; then
-            echo "Branches found:"
-            jq -r '.branches[].name' branches.json
-          else
-            echo "ERROR: Invalid API response"
-            exit 1
-          fi
+          echo "Dependabot branches found:"
+          jq -r '.branches[].name | select(startswith("preview/dependabot/"))' branches.json
 
       - name: Expire dependabot branches
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-
-          EXPIRES_AT=$(date -u -d "+24 hours" +"%Y-%m-%dT%H:%M:%SZ")
-
-          jq -r '.branches[].name' branches.json \
-          | grep '^dependabot/' || true \
+          jq -c '.branches[] | select(.name | startswith("preview/dependabot/"))' branches.json \
           | while read branch; do
 
-              echo "Expiring branch: $branch"
+              BRANCH_ID=$(echo "$branch" | jq -r '.id')
+              BRANCH_NAME=$(echo "$branch" | jq -r '.name')
+
+              echo "Expiring $BRANCH_NAME ($BRANCH_ID)"
 
               curl -sL -X PATCH \
                 -H "Authorization: Bearer $NEON_API_KEY" \
                 -H "Content-Type: application/json" \
-                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$branch" \
-                -d "{\"branch\": {\"expires_at\": \"$EXPIRES_AT\"}}"
+                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$BRANCH_ID" \
+                -d '{"expires_at":"'"$(date -u -d '+24 hours' +%Y-%m-%dT%H:%M:%SZ)"'"}'
 
           done
