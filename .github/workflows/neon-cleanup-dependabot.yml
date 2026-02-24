@@ -1,67 +1,62 @@
-name: Auto-expire Neon dependabot branches
+name: Cleanup Neon dependabot branches
 
 on:
   schedule:
-    # Runs daily at 3am Melbourne time (UTC+11 / UTC+10 safe average)
-    - cron: "0 16 * * *"
+    - cron: "0 16 * * *"   # daily 3am Melbourne
   workflow_dispatch:
 
 jobs:
-  expire-branches:
+  cleanup:
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Fetch Neon branches
+      - name: Fetch branches from Neon
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          echo "Fetching branches from Neon project: $PROJECT_ID"
-
-          curl -s \
+          curl -sL \
             -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          echo "API response validation..."
-
-          if jq -e '.branches' branches.json > /dev/null; then
-            echo "Branches found:"
-            jq -r '.branches[].name' branches.json
-          else
-            echo "ERROR: Invalid API response"
-            cat branches.json
-            exit 1
-          fi
-
-      - name: Expire dependabot branches
+      - name: Delete dependabot branches from this repo only
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          GITHUB_REPO: ${{ github.repository }}
         run: |
+          echo "Target GitHub repo: $GITHUB_REPO"
 
-          EXPIRES_AT=$(date -u -d "+24 hours" +"%Y-%m-%dT%H:%M:%SZ")
-
-          echo "Expiration timestamp: $EXPIRES_AT"
-
-          jq -r '.branches[].name' branches.json \
-          | grep '^dependabot/' || true \
+          jq -c --arg repo "$GITHUB_REPO" '
+            .branches[]
+            | select(.primary == false)
+            | select(.default == false)
+            | select(.protected == false)
+            | select(.name | startswith("preview/dependabot/"))
+            | select(
+                .id as $id
+                | .project_id as $project
+                | (
+                    input.annotations[$id].value."vercel-commit-repo" == $repo
+                  )
+              )
+          ' branches.json branches.json \
           | while read branch; do
 
-              echo "Setting expiration for branch: $branch"
+              BRANCH_ID=$(echo "$branch" | jq -r '.id')
+              BRANCH_NAME=$(echo "$branch" | jq -r '.name')
 
-              curl -s -X PATCH \
+              echo "Deleting Dependabot branch from this repo: $BRANCH_NAME"
+
+              curl -sL -X DELETE \
                 -H "Authorization: Bearer $NEON_API_KEY" \
-                -H "Content-Type: application/json" \
-                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$branch" \
-                -d "{\"branch\": {\"expires_at\": \"$EXPIRES_AT\"}}"
+                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$BRANCH_ID"
 
-              echo "Expiration set successfully"
-
+              echo ""
           done
 
-          echo "Cleanup complete"
+          echo "Cleanup complete."
