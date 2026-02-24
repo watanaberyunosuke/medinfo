@@ -2,12 +2,11 @@ name: Auto-expire Neon dependabot branches
 
 on:
   schedule:
-    # Runs daily at 3am Melbourne time (UTC+11 / UTC+10 safe average)
     - cron: "0 16 * * *"
   workflow_dispatch:
 
 jobs:
-  expire-branches:
+  expire:
     runs-on: ubuntu-latest
 
     steps:
@@ -15,26 +14,28 @@ jobs:
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Fetch Neon branches
+      - name: Fetch branches
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
           echo "Fetching branches from Neon project: $PROJECT_ID"
 
-          curl -s \
+          curl -sL \
             -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          echo "API response validation..."
+          echo "Raw response:"
+          cat branches.json
+
+          echo "Validating..."
 
           if jq -e '.branches' branches.json > /dev/null; then
             echo "Branches found:"
             jq -r '.branches[].name' branches.json
           else
             echo "ERROR: Invalid API response"
-            cat branches.json
             exit 1
           fi
 
@@ -46,22 +47,16 @@ jobs:
 
           EXPIRES_AT=$(date -u -d "+24 hours" +"%Y-%m-%dT%H:%M:%SZ")
 
-          echo "Expiration timestamp: $EXPIRES_AT"
-
           jq -r '.branches[].name' branches.json \
           | grep '^dependabot/' || true \
           | while read branch; do
 
-              echo "Setting expiration for branch: $branch"
+              echo "Expiring branch: $branch"
 
-              curl -s -X PATCH \
+              curl -sL -X PATCH \
                 -H "Authorization: Bearer $NEON_API_KEY" \
                 -H "Content-Type: application/json" \
                 "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$branch" \
                 -d "{\"branch\": {\"expires_at\": \"$EXPIRES_AT\"}}"
 
-              echo "Expiration set successfully"
-
           done
-
-          echo "Cleanup complete"
