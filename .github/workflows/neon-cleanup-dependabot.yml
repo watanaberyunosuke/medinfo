@@ -15,14 +15,12 @@ jobs:
           npm install -g neonctl
           neonctl --version
 
-      - name: Authenticate Neon CLI
-        run: neonctl auth --api-key "${{ secrets.NEON_API_KEY }}"
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
       - name: Expire dependabot branches
         env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
           neonctl branches list --project-id "$PROJECT_ID" --output json \
