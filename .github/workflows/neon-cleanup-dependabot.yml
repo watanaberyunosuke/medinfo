@@ -10,11 +10,12 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Setup Neon CLI
-        uses: neondatabase/setup-neon@v1
-
-      - name: Verify Neon CLI
-        run: neon --version
+      - name: Install Neon CLI
+        run: |
+          curl -L https://github.com/neondatabase/neonctl/releases/latest/download/neonctl-linux-amd64.tar.gz -o neon.tar.gz
+          tar -xzf neon.tar.gz
+          sudo mv neonctl /usr/local/bin/neon
+          neon --version
 
       - name: Authenticate Neon CLI
         run: neon auth --api-key "${{ secrets.NEON_API_KEY }}"
@@ -30,7 +31,7 @@ jobs:
           | jq -r '.branches[].name' \
           | grep '^dependabot/' || true \
           | while read branch; do
-              echo "Expiring $branch"
+              echo "Expiring branch: $branch"
               neon branches update "$branch" \
                 --project-id "$PROJECT_ID" \
                 --ttl 24h || true
