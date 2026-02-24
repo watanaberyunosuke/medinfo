@@ -1,4 +1,4 @@
-name: Cleanup Neon dependabot branches (repo-safe)
+name: Cleanup Neon dependabot branches
 
 on:
   schedule:
@@ -23,7 +23,7 @@ jobs:
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-      - name: Delete dependabot branches from THIS repo only
+      - name: Delete dependabot branches from this repo only
         env:
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
