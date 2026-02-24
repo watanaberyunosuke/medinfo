@@ -1,34 +1,60 @@
-name: Cleanup dependabot Neon branches
+name: Cleanup dependabot Neon branches (OIDC)
 
 on:
   schedule:
     - cron: "0 16 * * *"
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   cleanup:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Neon CLI
-        run: |
-          npm install -g neonctl
-          neonctl --version
-
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      - name: Get GitHub OIDC token
+        id: oidc
+        run: |
+          TOKEN=$(curl -s \
+            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=neon" \
+            | jq -r '.value')
+
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: List Neon branches
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+          PROJECT_ID: your_project_id_here
+        run: |
+          curl -s \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
+            > branches.json
+
+          cat branches.json | jq -r '.branches[].name'
+
       - name: Expire dependabot branches
         env:
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+          PROJECT_ID: your_project_id_here
         run: |
-          neonctl branches list --project-id "$PROJECT_ID" --output json \
+          cat branches.json \
           | jq -r '.branches[].name' \
           | grep '^dependabot/' || true \
           | while read branch; do
-              echo "Expiring branch: $branch"
-              neonctl branches update "$branch" \
-                --project-id "$PROJECT_ID" \
-                --ttl 24h || true
-            done
+
+              echo "Expiring $branch"
+
+              curl -X PATCH \
+                -H "Authorization: Bearer $OIDC_TOKEN" \
+                -H "Content-Type: application/json" \
+                "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$branch" \
+                -d '{"expires_at":"2026-12-31T00:00:00Z"}'
+
+          done
