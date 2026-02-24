@@ -1,60 +1,67 @@
-name: Cleanup dependabot Neon branches (OIDC)
+name: Auto-expire Neon dependabot branches
 
 on:
   schedule:
+    # Runs daily at 3am Melbourne time (UTC+11 / UTC+10 safe average)
     - cron: "0 16 * * *"
   workflow_dispatch:
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-  cleanup:
+  expire-branches:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Install jq
         run: sudo apt-get update && sudo apt-get install -y jq
 
-      - name: Get GitHub OIDC token
-        id: oidc
-        run: |
-          TOKEN=$(curl -s \
-            -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=neon" \
-            | jq -r '.value')
-
-          echo "token=$TOKEN" >> $GITHUB_OUTPUT
-
-      - name: List Neon branches
+      - name: Fetch Neon branches
         env:
-          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-          PROJECT_ID: your_project_id_here
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
+          echo "Fetching branches from Neon project: $PROJECT_ID"
+
           curl -s \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
+            -H "Authorization: Bearer $NEON_API_KEY" \
             "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches" \
             > branches.json
 
-          cat branches.json | jq -r '.branches[].name'
+          echo "API response validation..."
+
+          if jq -e '.branches' branches.json > /dev/null; then
+            echo "Branches found:"
+            jq -r '.branches[].name' branches.json
+          else
+            echo "ERROR: Invalid API response"
+            cat branches.json
+            exit 1
+          fi
 
       - name: Expire dependabot branches
         env:
-          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
-          PROJECT_ID: your_project_id_here
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
         run: |
-          cat branches.json \
-          | jq -r '.branches[].name' \
+
+          EXPIRES_AT=$(date -u -d "+24 hours" +"%Y-%m-%dT%H:%M:%SZ")
+
+          echo "Expiration timestamp: $EXPIRES_AT"
+
+          jq -r '.branches[].name' branches.json \
           | grep '^dependabot/' || true \
           | while read branch; do
 
-              echo "Expiring $branch"
+              echo "Setting expiration for branch: $branch"
 
-              curl -X PATCH \
-                -H "Authorization: Bearer $OIDC_TOKEN" \
+              curl -s -X PATCH \
+                -H "Authorization: Bearer $NEON_API_KEY" \
                 -H "Content-Type: application/json" \
                 "https://console.neon.tech/api/v2/projects/$PROJECT_ID/branches/$branch" \
-                -d '{"expires_at":"2026-12-31T00:00:00Z"}'
+                -d "{\"branch\": {\"expires_at\": \"$EXPIRES_AT\"}}"
+
+              echo "Expiration set successfully"
 
           done
+
+          echo "Cleanup complete"
